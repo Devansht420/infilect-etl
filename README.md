@@ -136,13 +136,7 @@ Upload order matters — stores and users must be uploaded before PJP.
 
 ### Download error report as JSON file
 
-Add `?download_errors=true` to any upload endpoint:
-
-```
-POST http://localhost:8000/api/upload/stores?download_errors=true
-```
-
-This returns a downloadable `stores_error_report.json` instead of an inline response. In Postman, click **Save Response → Save to a file** after sending.
+In Postman, click **Save Response → Save to a file** after sending.
 
 ### Response Format
 
