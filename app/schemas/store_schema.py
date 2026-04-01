@@ -1,20 +1,3 @@
-"""
-Pydantic schema for one row of stores_master.csv.
-
-Intentional errors found in the file (caught by these validators):
-- Row 6  : duplicate store_id STR-0004
-- Row 12 : missing store_id (empty string)
-- Row 18 : latitude = "not_available" (not a float)
-- Row 23 : longitude = 999.999 (out of valid range -180..180)
-- Row 44 : store_id / store_brand / city have leading+trailing whitespace (normalized, not rejected)
-- Row 49 : name is 300+ characters (exceeds VARCHAR(255))
-- Row 54 : title is empty string
-- Row 59 : country = "india" (lowercase — normalized to "India", not rejected)
-- Row 76 : latitude = -999 (out of valid range -90..90)
-- Row 86 : store_id = "12345" (does not match STR-XXXX pattern)
-- Row 91 : title = "   " (whitespace-only, treated as empty)
-"""
-
 import re
 from typing import Optional
 
@@ -67,7 +50,6 @@ class StoreRowSchema(BaseModel):
     @field_validator("store_brand", "store_type", "city", "state", "country", "region", mode="before")
     @classmethod
     def strip_lookup_fields(cls, v):
-        """Strip whitespace — normalization (title-case) happens in lookup_service."""
         v = str(v).strip()
         if not v:
             raise ValueError("field is required")

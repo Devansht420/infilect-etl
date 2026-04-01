@@ -30,7 +30,6 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      # Mount source for hot reload — changes reflect instantly without rebuild
       - ./app:/app/app
     depends_on:
       db:

@@ -1,14 +1,3 @@
-"""
-Store ingestion pipeline.
-
-Flow per chunk:
-  1. Validate each row with StoreRowSchema (Pydantic)
-  2. Track duplicates within the file itself (store_id seen twice)
-  3. For valid rows, resolve all 6 lookup FK IDs via get_or_create
-  4. Bulk insert valid rows using SQLAlchemy insert()
-  5. Collect errors with row number, column, and reason
-"""
-
 import asyncio
 import io
 from typing import Any
@@ -33,28 +22,26 @@ async def ingest_stores(contents: bytes, session: AsyncSession) -> dict:
 
     cache = LookupCache()
 
-    # Load all existing store_ids once to catch cross-chunk duplicates
     existing_ids_result = await session.execute(select(Store.store_id))
     existing_store_ids: set[str] = {row[0] for row in existing_ids_result}
-    seen_in_file: set[str] = set()  # track duplicates within this upload
+    seen_in_file: set[str] = set()
 
     df_iter = pd.read_csv(
         io.BytesIO(contents),
         chunksize=settings.CHUNK_SIZE,
-        dtype=str,        # read everything as string — Pydantic handles coercion
-        keep_default_na=False,  # prevent pandas turning empty cells into NaN
+        dtype=str,
+        keep_default_na=False,
     )
 
     for chunk in df_iter:
         valid_rows: list[dict[str, Any]] = []
 
         for _, row in chunk.iterrows():
-            abs_row = row.name + 2  # pandas index is 0-based data row; +1 header, +1 for 1-based
+            abs_row = row.name + 2
             total += 1
 
             row_dict = row.to_dict()
 
-            # Step 1 — Pydantic validation
             try:
                 validated = StoreRowSchema(**row_dict)
             except ValidationError as e:
@@ -67,7 +54,6 @@ async def ingest_stores(contents: bytes, session: AsyncSession) -> dict:
                     })
                 continue
 
-            # Step 2 — Duplicate store_id check
             sid = validated.store_id
             if sid in existing_store_ids or sid in seen_in_file:
                 errors.append({
@@ -78,7 +64,6 @@ async def ingest_stores(contents: bytes, session: AsyncSession) -> dict:
                 continue
             seen_in_file.add(sid)
 
-            # Step 3 — Resolve lookup FKs
             try:
                 lookup_ids = {}
                 for field in LOOKUP_FIELDS:
@@ -104,11 +89,9 @@ async def ingest_stores(contents: bytes, session: AsyncSession) -> dict:
                 **lookup_ids,
             })
 
-        # Step 4 — Bulk insert valid rows for this chunk
         if valid_rows:
             await session.execute(insert(Store), valid_rows)
             await session.commit()
-            # Add newly inserted IDs to existing set so next chunk sees them
             existing_store_ids.update(r["store_id"] for r in valid_rows)
             inserted += len(valid_rows)
 

@@ -1,17 +1,3 @@
-"""
-Pydantic schema for one row of users_master.csv.
-
-Intentional errors found in the file:
-- Row 8  : duplicate username neha.sharma6
-- Row 13 : user_type = 99 (not in allowed set 1,2,3,7)
-- Row 17 : phone_number = "+91ABC1234567" (invalid format)
-- Row 19 : supervisor_username = "anita.singh56" — username doesn't exist in the file
-           (anita.singh56 is the email prefix of row 8, but the username there is neha.sharma6)
-- Row 21 : supervisor_username = "ghost.user42" — does not exist at all
-- Row 25 : username is empty
-- Row 28 : email = "not-an-email" (invalid format)
-"""
-
 import re
 from typing import Optional
 
@@ -28,7 +14,7 @@ class UserRowSchema(BaseModel):
     email: str
     user_type: int
     phone_number: Optional[str] = ""
-    supervisor_username: Optional[str] = None  # resolved to supervisor_id during ingestion
+    supervisor_username: Optional[str] = None
     is_active: bool = True
 
     @field_validator("username", mode="before")
@@ -45,7 +31,6 @@ class UserRowSchema(BaseModel):
     @classmethod
     def validate_email(cls, v):
         v = str(v).strip()
-        # Basic RFC check: must have exactly one @, a dot after @, reasonable length
         if not v:
             raise ValueError("email is required")
         if len(v) > 254:

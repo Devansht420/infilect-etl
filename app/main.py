@@ -8,10 +8,8 @@ from app.routers import pjp, stores, users
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: create all tables
     await init_db()
     yield
-    # Shutdown: nothing needed (engine cleanup is automatic)
 
 
 app = FastAPI(

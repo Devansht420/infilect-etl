@@ -1,20 +1,3 @@
-"""
-Pydantic schema for one row of store_user_mapping.csv.
-
-Intentional errors found in the file:
-- Row 11 : username = "nonexistent.user" — not in users table
-- Row 12 : username = "phantom.person" — not in users table
-- Row 21 : store_id = "STR-9999" — not in stores table
-- Row 22 : store_id = "INVALID-STORE" — not in stores table + bad format
-- Row 31 : date = "32-13-2025" — invalid date
-- Row 32 : date = "not-a-date" — invalid date
-- Row 41 : duplicate row (rahul.patel26, STR-0031, 2026-01-10) — same as row 40
-- Row 51 : store_id is empty
-- Row 61 : username is empty
-- Row 71 : date = "2099-12-31" — suspiciously far future (warn, not reject)
-- Row 84 : is_active = "maybe" — not a valid boolean
-"""
-
 from datetime import date, datetime
 from typing import Optional
 
@@ -24,9 +7,6 @@ from pydantic import BaseModel, field_validator
 class PJPRowSchema(BaseModel):
     username: str
     store_id: str
-    # Declared as Optional[str] so Pydantic v2 doesn't try to coerce the
-    # raw CSV string into a date before our validator runs.
-    # Our validator handles the string → date conversion explicitly.
     date: Optional[str] = None
     is_active: bool = True
 
@@ -72,7 +52,6 @@ class PJPRowSchema(BaseModel):
         raise ValueError(f"is_active must be True or False, got '{v}'")
 
     def get_date(self) -> Optional[date]:
-        """Return the date field as a real date object for DB insertion."""
         if self.date is None:
             return None
         return datetime.strptime(self.date, "%Y-%m-%d").date()

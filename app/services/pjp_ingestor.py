@@ -1,11 +1,3 @@
-"""
-PJP (store-user mapping) ingestion pipeline.
-
-Depends on stores and users already being in the DB.
-FK validation: look up user by username and store by store_id.
-Duplicate check: (user_id, store_id, date) must be unique.
-"""
-
 import io
 
 import pandas as pd
@@ -25,14 +17,12 @@ async def ingest_pjp(contents: bytes, session: AsyncSession) -> dict:
     total = 0
     inserted = 0
 
-    # Pre-load FK maps once
     user_result = await session.execute(select(User.id, User.username))
     username_to_id: dict[str, int] = {row.username: row.id for row in user_result}
 
     store_result = await session.execute(select(Store.id, Store.store_id))
     storeid_to_id: dict[str, int] = {row.store_id: row.id for row in store_result}
 
-    # Pre-load existing triplets from DB
     existing_result = await session.execute(
         select(PermanentJourneyPlan.user_id, PermanentJourneyPlan.store_id, PermanentJourneyPlan.date)
     )
@@ -50,13 +40,10 @@ async def ingest_pjp(contents: bytes, session: AsyncSession) -> dict:
         valid_rows = []
 
         for _, row in chunk.iterrows():
-            # Fix: use the DataFrame index which is the absolute row position
-            # pandas preserves the original index across chunks, so index 0 = first data row
-            abs_row = row.name + 2  # +1 for header, +1 for 1-based
+            abs_row = row.name + 2
             total += 1
             row_dict = row.to_dict()
 
-            # Step 1 — Pydantic validation
             try:
                 validated = PJPRowSchema(**row_dict)
             except ValidationError as e:
@@ -65,7 +52,6 @@ async def ingest_pjp(contents: bytes, session: AsyncSession) -> dict:
                     errors.append({"row": abs_row, "column": field, "reason": err["msg"]})
                 continue
 
-            # Step 2 — Resolve user FK
             user_id = username_to_id.get(validated.username)
             if user_id is None:
                 errors.append({
@@ -75,7 +61,6 @@ async def ingest_pjp(contents: bytes, session: AsyncSession) -> dict:
                 })
                 continue
 
-            # Step 3 — Resolve store FK
             store_db_id = storeid_to_id.get(validated.store_id)
             if store_db_id is None:
                 errors.append({
@@ -85,7 +70,6 @@ async def ingest_pjp(contents: bytes, session: AsyncSession) -> dict:
                 })
                 continue
 
-            # Step 4 — Duplicate triplet check
             parsed_date = validated.get_date()
             triplet = (user_id, store_db_id, parsed_date)
             if triplet in existing_triplets or triplet in seen_in_file:
@@ -104,7 +88,6 @@ async def ingest_pjp(contents: bytes, session: AsyncSession) -> dict:
                 "is_active": validated.is_active,
             })
 
-        # Step 5 — Bulk insert
         if valid_rows:
             await session.execute(insert(PermanentJourneyPlan), valid_rows)
             await session.commit()
